@@ -1,0 +1,72 @@
+# 'Allow scripts to access the OAuth token' was selected in pipeline.  Add the following YAML to any steps requiring access:
+#       env:
+#           MY_ACCESS_TOKEN: $(System.AccessToken)
+trigger:
+  branches:
+    include:
+    - refs/heads/DEV
+  batch: True
+name: $(Date:yyyyMMdd).$(Rev:r)
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    name: COMMERCE
+  steps:
+  - checkout: self
+    fetchDepth: 1
+    persistCredentials: True
+  - task: PowerShell@2
+    displayName: Pre-Build Steps
+    inputs:
+      filePath: Pipeline/PowerShellScripts/Pre-Build.ps1
+  - task: NuGetToolInstaller@1
+    displayName: Use NuGet
+    inputs:
+      versionSpec: '>=5.4.0'
+  - task: NuGetCommand@2
+    displayName: NuGet restore
+    inputs:
+      selectOrConfig: config
+      nugetConfigPath: nuget.config
+  - task: VSBuild@1
+    displayName: 'Build solution '
+    inputs:
+      solution: src/ScaleUnit.sln
+      vsVersion: 17.0
+  - task: PowerShell@2
+    displayName: ' Copy Commerce Scale Unit Package'
+    inputs:
+      targetType: inline
+      filePath: $(Build.SourcesDirectory)\Pipeline\PowerShellScripts\CSU_CopyFileToDestination.ps1
+      script: Copy-Item "$(Build.SourcesDirectory)/src/ScaleUnit/bin/Debug/netstandard2.0/CloudScaleUnitExtensionPackage.zip" -Destination "$(Build.ArtifactStagingDirectory)\CloudScaleUnitExtensionPackage_$(Build.BuildNumber).zip"
+  - task: PowerShell@2
+    displayName: Copy Store Commerce Installer
+    inputs:
+      targetType: inline
+      script: Copy-Item "$(Build.SourcesDirectory)/src/StoreCommerce.Sample.Installer/bin/Debug/net472/StoreCommerce.Sample.Installer.exe" -Destination "$(Build.ArtifactStagingDirectory)\StoreCommerce.Sample.Installer_$(Build.BuildNumber).exe"
+  - task: PowerShell@2
+    displayName: Copy CSU Installer to Staging
+    inputs:
+      targetType: inline
+      script: >
+        Copy-Item "$(Build.SourcesDirectory)/src/ScaleUnit.Sample.Installer/bin/Debug/net472/ScaleUnit.Sample.Installer.exe" -Destination "$(Build.ArtifactStagingDirectory)\ScaleUnit.Sample.Installer_$(Build.BuildNumber).exe"
+  - task: DotNetCoreCLI@2
+    displayName: Install AzureSignTool
+    enabled: False
+    inputs:
+      command: custom
+      custom: tool
+      arguments: install --global azuresigntool
+      verbosityRestore: Detailed
+      verbosityPack: Detailed
+  - task: PowerShell@2
+    displayName: Digital Sign Cert
+    enabled: False
+    inputs:
+      filePath: ./Pipeline/PowerShellScripts/CodeSign.ps1
+      arguments: -TenantId $(TenantId) -ApplicationId $(ApplicationId) -ApplicationSecretValue $(SecretValue) -AzureKeyVaultURI $(AzureKeyVaultURI) -CertificateName $(CertificateName) -Timestamp $(Timestamp) -TimestampDigest "sha256" -Files   "$(Build.ArtifactStagingDirectory)\ScaleUnit.Sample.Installer_$(Build.BuildNumber).exe $(Build.ArtifactStagingDirectory)\StoreCommerce.Sample.Installer_$(Build.BuildNumber).exe"
+      script: -TenantId $(TenantId) -ApplicationId $(ApplicationId) -ApplicationSecretValue $(SecretValue) -AzureKeyVaultURI $(AzureKeyVaultURI) -CertificateName $(CertificateName) -Timestamp $(Timestamp) -TimestampDigest "sha256" -Files "$(Build.ArtifactStagingDirectory)\Contoso.PaymentDeviceSample.HardwareStation.Installer_$(Build.BuildNumber).exe $(Build.ArtifactStagingDirectory)\Contoso.ModernPosPackagingSample.ModernPos.Installer_$(Build.BuildNumber).exe
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: drop'
+...
