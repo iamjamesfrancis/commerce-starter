@@ -15,4 +15,9 @@
     <ProjectReference Include="..\CommerceRuntime\CommerceRuntime.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\POS\POS.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
+
+   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="$(ProjectDir)bin\Debug\$(TargetFramework)\$(MSBuildProjectName).exe install" ContinueOnError="true" />
+  </Target>
+  
 </Project>
