@@ -4,12 +4,12 @@
 trigger:
   branches:
     include:
-    - refs/heads/DEV
+    - refs/heads/master
   batch: True
 name: $(Date:yyyyMMdd).$(Rev:r)
 jobs:
 - job: Job_1
-  displayName: Agent job 1
+  displayName: Build solution and copy the packages
   pool:
     name: COMMERCE
   steps:
